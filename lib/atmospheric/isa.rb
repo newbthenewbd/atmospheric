@@ -48,13 +48,24 @@ module Atmospheric
     CONST = constants.freeze
 
     class << self
-      # 2.3 Geopotential and geometric altitides; acceleration of free fall
+
+      private
+
+      def f32(f64)
+        [f64].pack("f").unpack("f")[0]
+      end
+
+      public
+
+      # 2.3 Geopotential and geometric altitudes; acceleration of free fall
 
       # 2.3 Formula (8)
       # H to h
       # h(m)
+
       def geometric_altitude_from_geopotential(geopotential_alt)
-        CONST[:radius] * geopotential_alt / (CONST[:radius] - geopotential_alt)
+        #CONST[:radius] * (geopotential_alt / (CONST[:radius] - geopotential_alt))
+        f32(f32(geopotential_alt / (CONST[:radius] - geopotential_alt)) * CONST[:radius])
       end
 
       # 2.3 Formula (9)
@@ -168,17 +179,18 @@ module Atmospheric
           current_layer = TEMPERATURE_LAYERS[i]
           geopotential_alt = current_layer[:H]
           temp = current_layer[:T]
-          temp_diff = geopotential_alt - capital_h_b
+          height_diff = geopotential_alt - capital_h_b
 
           p_i = if beta != 0
                   # Formula (12)
                   pressure_formula_beta_nonzero(p_b, beta, capital_t_b,
-                                                temp_diff)
+                                                height_diff)
                 else
                   # Formula (13)
-                  pressure_formula_beta_zero(p_b, temp, temp_diff)
+                  pressure_formula_beta_zero(p_b, temp, height_diff)
                 end
-          p[i] = p_i
+          p[i] = p_i#.round(6 - Math.log10(p_i).ceil) # significant digits
+          puts p[i]
         end
 
         @pressure_layers = p
@@ -189,8 +201,10 @@ module Atmospheric
 
       # Formula (12)
       def pressure_formula_beta_nonzero(p_b, beta, temp, height_diff)
-        p_b * (1 + ((beta / temp) * height_diff)) \
-          **(-CONST[:g_n] / (beta * CONST[:R]))
+        #p_b * (1 + ((beta / temp) * height_diff)) \
+        #  **(-CONST[:g_n] / (beta * CONST[:R]))
+		f32(p_b) * f32(1 + ((beta / temp) * height_diff)) \
+          **f32(-CONST[:g_n] / (beta * CONST[:R]))
       end
 
       # Formula (13)
@@ -218,15 +232,16 @@ module Atmospheric
         capital_h_b = lower_temperature_layer[:H]
         capital_t_b = lower_temperature_layer[:T]
         temp = temperature_at_layer_from_geopotential(geopotential_alt)
+
         p_b = pressure_layers[i]
-        temp_diff = geopotential_alt - capital_h_b
+        height_diff = geopotential_alt - capital_h_b
 
         if beta != 0
           # Formula (12)
-          pressure_formula_beta_nonzero(p_b, beta, capital_t_b, temp_diff)
+          pressure_formula_beta_nonzero(p_b, beta, capital_t_b, height_diff)
         else
           # Formula (13)
-          pressure_formula_beta_zero(p_b, temp, temp_diff)
+          pressure_formula_beta_zero(p_b, temp, height_diff)
         end
       end
       # rubocop:enable Metrics/MethodLength
